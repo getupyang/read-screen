@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { Buffer } from "buffer";
 
 // Force update: v0.1.8 - Fix Node.js Base64 decoding
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
