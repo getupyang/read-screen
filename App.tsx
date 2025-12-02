@@ -17,7 +17,8 @@ function App() {
 
       {/* 主内容区：空状态展示 */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+        {/* Added animate-pulse to make the change visible */}
+        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
           <Inbox className="w-12 h-12 text-blue-600" />
         </div>
         <h2 className="text-xl font-semibold text-gray-800 mb-2">收件箱是空的</h2>
@@ -39,6 +40,11 @@ function App() {
            <p className="text-xs text-gray-400 mt-2">✨ 晚上回来看 AI 整理好的卡片</p>
         </div>
       </main>
+
+      {/* 底部版本号，用于确认部署成功 */}
+      <footer className="pb-6 text-center">
+        <p className="text-[10px] text-gray-300 font-mono">v0.1.1 • Ready for Input</p>
+      </footer>
     </div>
   );
 }
