@@ -1,48 +1,56 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from "@supabase/supabase-js";
-import { Buffer } from "buffer";
+import { Buffer } from "node:buffer";
 
-// Force update: v0.1.8 - Fix Node.js Base64 decoding
+// 环境变量检查
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-export default async function handler(req: Request) {
-  // 1. 基础检查
+// 使用 Vercel 标准 Node.js 签名
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 1. 健康检查 (GET 请求) - 用于浏览器直接访问测试
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      status: 'ok', 
+      message: 'Snapshot AI API is running', 
+      time: new Date().toISOString() 
+    });
+  }
+
+  // 2. 仅允许 POST
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   console.log("📨 [Start] Received POST request");
 
   if (!supabaseUrl || !supabaseKey) {
     console.error("❌ [Config Error] Missing Supabase Env Vars");
-    return new Response(JSON.stringify({ error: 'Server configuration error: Missing vars' }), { status: 500 });
+    return res.status(500).json({ error: 'Server configuration error: Missing vars' });
   }
 
   try {
-    // 2. 解析请求
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // 3. Vercel 会自动解析 JSON body 到 req.body
+    const body = req.body;
     
-    let body;
-    try {
-      body = await req.json();
-    } catch (e) {
-      console.error("❌ [Parse Error] Invalid JSON body");
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 });
-    }
-    
-    const { image, source = 'shortcut' } = body;
+    // 容错：有些客户端可能发送纯字符串
+    const payload = typeof body === 'string' ? JSON.parse(body) : body;
+    const { image, source = 'shortcut' } = payload;
 
     if (!image) {
-      console.error("❌ [Data Error] No image provided");
-      return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
+      console.error("❌ [Data Error] No image provided in body");
+      return res.status(400).json({ error: 'No image provided' });
     }
 
     console.log(`📦 [Data] Image received. Length: ${image.length} chars`);
 
-    // 3. 上传图片 (使用 Node.js Buffer，更稳定)
+    // 4. 初始化 Supabase
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 5. 上传逻辑
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
     
-    // 关键修改：使用 Buffer.from 替代 atob
+    // 使用 node:buffer 进行解码，比 atob 更稳健
     const fileBuffer = Buffer.from(image, 'base64');
     
     console.log(`🚀 [Upload] Start uploading to 'screenshots/${fileName}'...`);
@@ -58,21 +66,20 @@ export default async function handler(req: Request) {
       console.error('❌ [Upload Failed]:', uploadError);
       throw new Error(`Upload failed: ${uploadError.message}`);
     }
-    console.log("✅ [Upload Success]:", fileName);
-
-    // 构造 URL
+    
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`;
+    console.log("✅ [Upload Success]:", publicUrl);
 
-    // 4. 存入数据库
+    // 6. 写入数据库
     console.log("💾 [DB] Saving metadata...");
     
     const mockAnalysis = {
-      meta: { type: "TEST_UPLOAD", confidence: 100, source_hint: "NodeJS Buffer Fix" },
+      meta: { type: "TEST_UPLOAD", confidence: 100, source_hint: "Vercel Node Runtime" },
       card: {
-        title: "上传成功 (v0.1.8)",
+        title: "上传成功 (API v2)",
         tag: "System",
         read_time: "0 min",
-        sections: [{ type: "highlight", content: "图片已成功解码并存储" }]
+        sections: [{ type: "highlight", content: "图片已成功解码并存储，等待 AI 分析..." }]
       }
     };
 
@@ -89,23 +96,21 @@ export default async function handler(req: Request) {
       console.error('❌ [DB Error]:', dbError);
       throw dbError;
     }
-    console.log("✅ [DB Success]");
 
-    // 5. 返回成功
-    return new Response(JSON.stringify({ 
+    console.log("✅ [DB Success] All done.");
+    
+    // 7. 返回成功
+    return res.status(200).json({ 
       success: true, 
       message: "Image uploaded successfully", 
       url: publicUrl 
-    }), { 
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
     console.error('❌ [Global Error]:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || "Unknown server error", 
-      stack: error.stack 
-    }), { status: 500 });
+    return res.status(500).json({ 
+      error: error.message || "Unknown server error",
+      details: error.toString() 
+    });
   }
 }
