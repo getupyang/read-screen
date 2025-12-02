@@ -43,7 +43,7 @@ function App() {
 
       {/* 底部版本号，用于确认部署成功 */}
       <footer className="pb-6 text-center">
-        <p className="text-[10px] text-gray-400 font-mono">v0.1.4 • Backend Connected</p>
+        <p className="text-[10px] text-gray-400 font-mono">v0.1.6 • Backend Ready</p>
       </footer>
     </div>
   );
