@@ -1,13 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Force update: v0.1.7 - Infrastructure Test (Upload Only)
+// Force update: v0.1.8 - Fix Node.js Base64 decoding
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-
-// 移除 runtime: 'edge'，使用默认的 Node.js Serverless，超时时间更长，兼容性更好
-// export const config = {
-//   runtime: 'edge',
-// };
 
 export default async function handler(req: Request) {
   // 1. 基础检查
@@ -15,11 +10,10 @@ export default async function handler(req: Request) {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
 
-  // 打印日志方便调试
-  console.log("📨 Received POST request");
+  console.log("📨 [Start] Received POST request");
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error("❌ Missing Supabase Env Vars");
+    console.error("❌ [Config Error] Missing Supabase Env Vars");
     return new Response(JSON.stringify({ error: 'Server configuration error: Missing vars' }), { status: 500 });
   }
 
@@ -31,84 +25,70 @@ export default async function handler(req: Request) {
     try {
       body = await req.json();
     } catch (e) {
-      console.error("❌ JSON Parse Failed");
+      console.error("❌ [Parse Error] Invalid JSON body");
       return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 });
     }
     
     const { image, source = 'shortcut' } = body;
 
     if (!image) {
-      console.error("❌ No image data in body");
+      console.error("❌ [Data Error] No image provided");
       return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
     }
 
-    console.log("📦 Image data received (length):", image.length);
+    console.log(`📦 [Data] Image received. Length: ${image.length} chars`);
 
-    // 3. 上传图片到 Supabase Storage
-    // 使用时间戳+随机数生成文件名
+    // 3. 上传图片 (使用 Node.js Buffer，更稳定)
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
     
-    // Base64 处理: Node.js 环境下建议使用 Buffer，但也兼容标准 Web API
-    // 这里我们尝试将 Base64 转为 ArrayBuffer
-    const binaryStr = atob(image);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
+    // 关键修改：使用 Buffer.from 替代 atob
+    const fileBuffer = Buffer.from(image, 'base64');
     
-    console.log("🚀 Uploading to Supabase Storage...");
+    console.log(`🚀 [Upload] Start uploading to 'screenshots/${fileName}'...`);
+    
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('screenshots')
-      .upload(fileName, bytes, { 
+      .upload(fileName, fileBuffer, { 
         contentType: 'image/jpeg',
         upsert: false
       });
 
     if (uploadError) {
-      console.error('❌ Storage Upload Error:', uploadError);
+      console.error('❌ [Upload Failed]:', uploadError);
       throw new Error(`Upload failed: ${uploadError.message}`);
     }
-    console.log("✅ Upload success:", fileName);
+    console.log("✅ [Upload Success]:", fileName);
 
-    // 构造可访问的图片 URL
+    // 构造 URL
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`;
 
-    // ---------------------------------------------------------
-    // 暂时跳过 Gemini AI 分析，先验证上传链路
-    // ---------------------------------------------------------
-    /*
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    console.log("🧠 Calling Gemini...");
-    const response = await ai.models.generateContent({...});
-    */
+    // 4. 存入数据库
+    console.log("💾 [DB] Saving metadata...");
     
-    // 模拟一个简单的结果，证明流程通了
     const mockAnalysis = {
-      meta: { type: "TEST_UPLOAD", confidence: 100, source_hint: "Test" },
+      meta: { type: "TEST_UPLOAD", confidence: 100, source_hint: "NodeJS Buffer Fix" },
       card: {
-        title: "上传测试成功",
+        title: "上传成功 (v0.1.8)",
         tag: "System",
         read_time: "0 min",
-        sections: [{ type: "highlight", content: "图片已安全存入 Supabase Storage" }]
+        sections: [{ type: "highlight", content: "图片已成功解码并存储" }]
       }
     };
 
-    // 4. 存入数据库 (状态标记为 uploaded)
-    console.log("💾 Saving to Database...");
     const { error: dbError } = await supabase
       .from('inbox')
       .insert([{
         image_url: publicUrl,
-        status: 'uploaded', // 区别于 ready，表示还没分析
+        status: 'uploaded',
         analysis_result: mockAnalysis,
         source: source
       }]);
 
     if (dbError) {
-      console.error('❌ DB Insert Error:', dbError);
+      console.error('❌ [DB Error]:', dbError);
       throw dbError;
     }
-    console.log("✅ DB Insert success");
+    console.log("✅ [DB Success]");
 
     // 5. 返回成功
     return new Response(JSON.stringify({ 
@@ -121,7 +101,7 @@ export default async function handler(req: Request) {
     });
 
   } catch (error: any) {
-    console.error('❌ Handler Global Error:', error);
+    console.error('❌ [Global Error]:', error);
     return new Response(JSON.stringify({ 
       error: error.message || "Unknown server error", 
       stack: error.stack 
