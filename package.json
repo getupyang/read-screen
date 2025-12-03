@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check-inbox": "tsx scripts/check-inbox.ts",
     "trigger": "tsx scripts/trigger-analysis.ts",
-    "debug": "tsx scripts/debug-inbox.ts"
+    "debug": "tsx scripts/debug-inbox.ts",
+    "evaluate": "tsx scripts/evaluate-prompt.ts"
   },
   "dependencies": {
     "@google/genai": "*",
