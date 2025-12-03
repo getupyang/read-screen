@@ -1,15 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
 export const config = {
-  runtime: 'edge', // ⚡️ 启用边缘运行时：0 冷启动，极速响应
+  runtime: 'edge',
 };
 
-// 环境变量
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+// 自动获取当前部署的 URL，如果在本地则是 localhost
+const appUrl = process.env.VERCEL_URL 
+  ? `https://${process.env.VERCEL_URL}` 
+  : 'http://localhost:3000';
 
 export default async function handler(req: Request) {
-  // 1. CORS 设置 (允许捷径跨域访问)
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: {
@@ -19,21 +21,8 @@ export default async function handler(req: Request) {
     });
   }
 
-  // 2. 健康检查
   if (req.method === 'GET') {
-    return new Response(JSON.stringify({ 
-      status: 'ok', 
-      runtime: 'edge', 
-      region: req.headers.get('x-vercel-id') || 'unknown' 
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  // 3. 处理 POST 上传
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    return new Response(JSON.stringify({ status: 'ok', runtime: 'edge' }), { status: 200 });
   }
 
   try {
@@ -41,33 +30,28 @@ export default async function handler(req: Request) {
       throw new Error("Missing Supabase configuration");
     }
 
-    // Edge Runtime 能够更快地处理 JSON 解析
     const { image, source = 'shortcut' } = await req.json();
 
     if (!image) {
       return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
     }
 
-    // 4. 高效的 Base64 解码 (Web Standard)
-    // 在 Edge 环境下，我们使用 atob 和 Uint8Array，比 Node Buffer 更轻量
-    const binaryString = atob(image);
+    // 1. 处理图片
+    const cleanImage = image.replace(/\s/g, ''); 
+    const binaryString = atob(cleanImage);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // 5. 并行初始化 Supabase 客户端
     const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false, // Edge 环境不需要持久化 Session
-      }
+      auth: { persistSession: false }
     });
 
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
 
-    // 6. 上传到 Storage
-    // 直接上传二进制数据，无需再次转换
+    // 2. 上传 Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('screenshots')
       .upload(fileName, bytes, {
@@ -79,25 +63,45 @@ export default async function handler(req: Request) {
 
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`;
 
-    // 7. 写入数据库记录
-    const { error: dbError } = await supabase
+    // 3. 写入数据库 (状态: uploaded)
+    const { data: insertedData, error: dbError } = await supabase
       .from('inbox')
       .insert([{
         image_url: publicUrl,
-        status: 'uploaded',
+        status: 'uploaded', // 还没开始分析
         source: source,
-        // 先写入一个占位符，证明链路通了
-        analysis_result: { 
-          card: { title: "Processing...", sections: [] } 
-        }
-      }]);
+      }])
+      .select()
+      .single();
 
     if (dbError) throw dbError;
 
-    // 8. 极速返回
+    const inboxId = insertedData.id;
+
+    console.log(`[Success] Image uploaded: ${fileName}. Inbox ID: ${inboxId}`);
+
+    // 4. 关键步骤：Fire-and-Forget (异步触发分析)
+    // 我们不等待这个 fetch 返回，直接给 iOS 返回成功。
+    // 注意：在某些 Serverless 环境中，如果主请求结束，后台任务可能被杀。
+    // 但 Vercel Edge 允许一定程度的后台执行，或者我们依赖 Gemini 的极速响应。
+    // 为了保险，我们使用 fetch 但不 await 结果。
+    const processUrl = `${appUrl}/api/process`;
+    console.log(`[Trigger] Firing async process request to ${processUrl}...`);
+    
+    fetch(processUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        id: inboxId, 
+        imageUrl: publicUrl 
+      })
+    }).catch(err => console.error("Async trigger failed:", err));
+
+    // 5. 立即返回成功给用户
     return new Response(JSON.stringify({ 
       success: true, 
-      url: publicUrl 
+      url: publicUrl,
+      message: "Saved to inbox. Processing in background."
     }), {
       status: 200,
       headers: { 
@@ -107,15 +111,12 @@ export default async function handler(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("Edge Function Error:", error);
+    console.error("Upload Error:", error);
     return new Response(JSON.stringify({ 
       error: error.message || "Internal Server Error" 
     }), {
       status: 500,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
 }
