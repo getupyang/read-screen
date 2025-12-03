@@ -1,116 +1,121 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from "@supabase/supabase-js";
-import { Buffer } from "node:buffer";
 
-// 环境变量检查
+export const config = {
+  runtime: 'edge', // ⚡️ 启用边缘运行时：0 冷启动，极速响应
+};
+
+// 环境变量
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-// 使用 Vercel 标准 Node.js 签名
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // 1. 健康检查 (GET 请求) - 用于浏览器直接访问测试
-  if (req.method === 'GET') {
-    return res.status(200).json({ 
-      status: 'ok', 
-      message: 'Snapshot AI API is running', 
-      time: new Date().toISOString() 
+export default async function handler(req: Request) {
+  // 1. CORS 设置 (允许捷径跨域访问)
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      },
     });
   }
 
-  // 2. 仅允许 POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  // 2. 健康检查
+  if (req.method === 'GET') {
+    return new Response(JSON.stringify({ 
+      status: 'ok', 
+      runtime: 'edge', 
+      region: req.headers.get('x-vercel-id') || 'unknown' 
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
-  console.log("📨 [Start] Received POST request");
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("❌ [Config Error] Missing Supabase Env Vars");
-    return res.status(500).json({ error: 'Server configuration error: Missing vars' });
+  // 3. 处理 POST 上传
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
 
   try {
-    // 3. Vercel 会自动解析 JSON body 到 req.body
-    const body = req.body;
-    
-    // 容错：有些客户端可能发送纯字符串
-    const payload = typeof body === 'string' ? JSON.parse(body) : body;
-    const { image, source = 'shortcut' } = payload;
-
-    if (!image) {
-      console.error("❌ [Data Error] No image provided in body");
-      return res.status(400).json({ error: 'No image provided' });
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase configuration");
     }
 
-    console.log(`📦 [Data] Image received. Length: ${image.length} chars`);
+    // Edge Runtime 能够更快地处理 JSON 解析
+    const { image, source = 'shortcut' } = await req.json();
 
-    // 4. 初始化 Supabase
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    if (!image) {
+      return new Response(JSON.stringify({ error: 'No image provided' }), { status: 400 });
+    }
 
-    // 5. 上传逻辑
+    // 4. 高效的 Base64 解码 (Web Standard)
+    // 在 Edge 环境下，我们使用 atob 和 Uint8Array，比 Node Buffer 更轻量
+    const binaryString = atob(image);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // 5. 并行初始化 Supabase 客户端
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false, // Edge 环境不需要持久化 Session
+      }
+    });
+
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-    
-    // 使用 node:buffer 进行解码，比 atob 更稳健
-    const fileBuffer = Buffer.from(image, 'base64');
-    
-    console.log(`🚀 [Upload] Start uploading to 'screenshots/${fileName}'...`);
-    
-    const { data: uploadData, error: uploadError } = await supabase.storage
+
+    // 6. 上传到 Storage
+    // 直接上传二进制数据，无需再次转换
+    const { error: uploadError } = await supabase.storage
       .from('screenshots')
-      .upload(fileName, fileBuffer, { 
+      .upload(fileName, bytes, {
         contentType: 'image/jpeg',
         upsert: false
       });
 
-    if (uploadError) {
-      console.error('❌ [Upload Failed]:', uploadError);
-      throw new Error(`Upload failed: ${uploadError.message}`);
-    }
-    
+    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`;
-    console.log("✅ [Upload Success]:", publicUrl);
 
-    // 6. 写入数据库
-    console.log("💾 [DB] Saving metadata...");
-    
-    const mockAnalysis = {
-      meta: { type: "TEST_UPLOAD", confidence: 100, source_hint: "Vercel Node Runtime" },
-      card: {
-        title: "上传成功 (API v2)",
-        tag: "System",
-        read_time: "0 min",
-        sections: [{ type: "highlight", content: "图片已成功解码并存储，等待 AI 分析..." }]
-      }
-    };
-
+    // 7. 写入数据库记录
     const { error: dbError } = await supabase
       .from('inbox')
       .insert([{
         image_url: publicUrl,
         status: 'uploaded',
-        analysis_result: mockAnalysis,
-        source: source
+        source: source,
+        // 先写入一个占位符，证明链路通了
+        analysis_result: { 
+          card: { title: "Processing...", sections: [] } 
+        }
       }]);
 
-    if (dbError) {
-      console.error('❌ [DB Error]:', dbError);
-      throw dbError;
-    }
+    if (dbError) throw dbError;
 
-    console.log("✅ [DB Success] All done.");
-    
-    // 7. 返回成功
-    return res.status(200).json({ 
+    // 8. 极速返回
+    return new Response(JSON.stringify({ 
       success: true, 
-      message: "Image uploaded successfully", 
       url: publicUrl 
+    }), {
+      status: 200,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
     });
 
   } catch (error: any) {
-    console.error('❌ [Global Error]:', error);
-    return res.status(500).json({ 
-      error: error.message || "Unknown server error",
-      details: error.toString() 
+    console.error("Edge Function Error:", error);
+    return new Response(JSON.stringify({ 
+      error: error.message || "Internal Server Error" 
+    }), {
+      status: 500,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
     });
   }
 }
