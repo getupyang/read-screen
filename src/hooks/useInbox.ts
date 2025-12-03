@@ -111,7 +111,18 @@ export const useInbox = () => {
   };
 
   useEffect(() => {
+    // 初始加载
     fetchInbox();
+
+    // 自动触发待处理图片的分析（静默处理）
+    triggerAnalysis();
+
+    // 每30秒自动刷新一次，获取新生成的卡片
+    const interval = setInterval(() => {
+      fetchInbox();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return {

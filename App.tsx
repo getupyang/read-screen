@@ -78,22 +78,6 @@ function App() {
               遇到喜欢的干货，截图并分享给 <span className="font-bold text-blue-600">Snapshot AI</span>。
             </p>
 
-            {/* 触发分析按钮 */}
-            <button
-              onClick={handleTriggerAnalysis}
-              disabled={isTriggering}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isTriggering ? (
-                <>
-                  <RefreshCw className="w-5 h-5 inline mr-2 animate-spin" />
-                  处理中...
-                </>
-              ) : (
-                '🔍 检查待处理图片'
-              )}
-            </button>
-
             {/* 模拟卡片预览 */}
             <div className="mt-12 w-full max-w-sm opacity-50 blur-[1px] scale-95 pointer-events-none select-none">
               <div className="bg-white p-4 rounded-2xl shadow-lg border border-gray-100">
@@ -104,7 +88,7 @@ function App() {
                   <div className="h-3 w-5/6 bg-gray-200 rounded"></div>
                 </div>
               </div>
-              <p className="text-xs text-gray-400 mt-2">✨ AI 整理好的卡片会在这里显示</p>
+              <p className="text-xs text-gray-400 mt-2">✨ 截图后约30秒，卡片会自动出现</p>
             </div>
           </div>
         )}
