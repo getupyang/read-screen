@@ -8,7 +8,8 @@ export const config = {
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-const geminiApiKey = process.env.API_KEY; // 注意：Vercel 中通常用 API_KEY
+// 使用用户指定的 GEMINI_API_KEY
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 // 定义 AI 输出的严格 JSON 格式
 // 一张图 -> 多个知识点 (items)
@@ -67,16 +68,16 @@ export default async function handler(req: Request) {
 
     console.log(`[Process] Starting AI analysis for ID: ${id}`);
 
-    if (!geminiApiKey) throw new Error("Missing Gemini API Key");
+    if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY in environment variables");
 
     // 1. 初始化
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
     const supabase = createClient(supabaseUrl!, supabaseKey!);
 
     // 2. 获取图片数据
-    // 我们需要把图片转成 Base64 给 Gemini
-    // 既然我们有 URL，可以 fetch 下来
     const imageResp = await fetch(imageUrl);
+    if (!imageResp.ok) throw new Error(`Failed to fetch image: ${imageResp.statusText}`);
+    
     const imageBlob = await imageResp.blob();
     const arrayBuffer = await imageBlob.arrayBuffer();
     const base64Image = btoa(
@@ -84,7 +85,6 @@ export default async function handler(req: Request) {
     );
 
     // 3. 调用 Gemini 2.5 Flash
-    // Prompt 设计：不仅仅是 OCR，而是“增量知识提取”
     const prompt = `
       You are an expert Knowledge Curator. 
       Your goal is to extract structured knowledge from this screenshot.
@@ -110,15 +110,20 @@ export default async function handler(req: Request) {
       }
     });
 
-    const resultJson = response.text;
-    console.log("[Process] AI Response:", resultJson);
+    let resultJson = response.text || "{}";
+    console.log("[Process] AI Raw Response:", resultJson);
+
+    // 清洗 JSON
+    if (resultJson.includes("```")) {
+      resultJson = resultJson.replace(/```json/g, "").replace(/```/g, "");
+    }
 
     // 4. 更新数据库
     const { error: updateError } = await supabase
       .from('inbox')
       .update({
         status: 'ready',
-        analysis_result: JSON.parse(resultJson) // 直接存 JSON 对象
+        analysis_result: JSON.parse(resultJson)
       })
       .eq('id', id);
 
@@ -130,10 +135,8 @@ export default async function handler(req: Request) {
   } catch (error: any) {
     console.error("[Process Error]", error);
     
-    // 即使失败，也更新状态以便排查
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
-      // 尝试从 req 解析 id，如果失败就算了
       try {
          const { id } = await req.clone().json();
          if (id) {
