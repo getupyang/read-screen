@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "check-inbox": "tsx scripts/check-inbox.ts"
+    "check-inbox": "tsx scripts/check-inbox.ts",
+    "trigger": "tsx scripts/trigger-analysis.ts"
   },
   "dependencies": {
     "@google/genai": "*",

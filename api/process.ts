@@ -85,15 +85,15 @@ export default async function handler(req: Request) {
     );
 
     // 3. 调用 Gemini 2.5 Flash
+    // 注意：这是简化版prompt，用于验证链路。后续会优化为高质量版本。
     const prompt = `
-      You are an expert Knowledge Curator. 
-      Your goal is to extract structured knowledge from this screenshot.
-      
-      Rules:
-      1. **Incremental Value**: Do not just transcribe the text. Explain the concepts, provide context, or give actionable advice.
-      2. **Split Topics**: If the image discusses multiple distinct concepts, create separate cards for them.
-      3. **Curiosity Driven**: Write for a curious user who wants to learn something new in 30 seconds.
-      4. **Language**: Output strictly in CHINESE (Simplified).
+      分析这张截图，提取其中的关键信息。
+
+      要求：
+      1. 用中文输出
+      2. 提炼核心观点，不要只是复述文字
+      3. 如果有多个话题，分成多张卡片
+      4. 标题要吸引人，内容要通俗易懂
     `;
 
     const response = await ai.models.generateContent({
