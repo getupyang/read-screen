@@ -98,15 +98,22 @@ export default async function handler(req: Request) {
           { text: strategy.prompt }
         ]
       },
-      config: {
+      generationConfig: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
       }
     };
 
-    // 如果策略需要 Google Search，添加 tools
+    // 如果策略需要 Google Search，使用正确的 grounding 配置
     if (strategy.useGoogleSearch) {
-      requestConfig.tools = [{ googleSearch: {} }];
+      requestConfig.tools = [{
+        googleSearchRetrieval: {
+          dynamicRetrievalConfig: {
+            mode: "MODE_DYNAMIC",
+            dynamicThreshold: 0.3
+          }
+        }
+      }];
     }
 
     const response = await ai.models.generateContent(requestConfig);
