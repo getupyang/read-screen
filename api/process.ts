@@ -96,12 +96,17 @@ export default async function handler(req: Request) {
     }
 
     console.log("[Process] Image fetched, converting to base64...");
-    const imageBlob = await imageResp.blob();
-    const arrayBuffer = await imageBlob.arrayBuffer();
-    const base64Image = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-    );
-    console.log("[Process] Image converted to base64, length:", base64Image.length);
+    let base64Image;
+    try {
+      const imageBlob = await imageResp.blob();
+      const arrayBuffer = await imageBlob.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      base64Image = buffer.toString('base64');
+      console.log("[Process] Image converted to base64, length:", base64Image.length);
+    } catch (error: any) {
+      console.error("[Process] Failed to convert image to base64:", error);
+      throw new Error(`Image conversion failed: ${error.message}`);
+    }
 
     // 3. 调用 Gemini 2.5 Flash
     console.log("[Process] Calling Gemini API...");
