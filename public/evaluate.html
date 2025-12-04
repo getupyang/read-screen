@@ -295,17 +295,14 @@
           <label>策略版本</label>
           <select id="strategyId">
             <option value="v1-baseline">Baseline v1.0 (无搜索)</option>
-            <!-- 未来版本会在这里添加 -->
           </select>
         </div>
-        <!-- 未来：右侧会有 + 按钮添加对比版本 -->
       </div>
 
       <button class="test-btn" onclick="runEvaluation()">🚀 开始评测</button>
     </div>
 
     <div class="results-container" id="resultsContainer">
-      <!-- 动态插入结果 -->
     </div>
   </div>
 
@@ -320,27 +317,22 @@
         return;
       }
 
-      // 显示加载状态
       resultsContainer.classList.add('show');
-      resultsContainer.innerHTML = `
-        <div class="strategy-result">
-          <div class="status loading">⏳ 正在调用 AI 分析...</div>
-        </div>
-      `;
+      resultsContainer.innerHTML = '<div class="strategy-result"><div class="status loading">⏳ 正在调用 AI 分析...</div></div>';
 
       try {
         const apiUrl = window.location.origin;
         const startTime = Date.now();
 
-        const response = await fetch(\`\${apiUrl}/api/evaluate\`, {
+        const response = await fetch(apiUrl + '/api/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl, strategyId })
+          body: JSON.stringify({ imageUrl: imageUrl, strategyId: strategyId })
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || \`API 返回 \${response.status}\`);
+          throw new Error(errorData.error || 'API 返回 ' + response.status);
         }
 
         const data = await response.json();
@@ -350,64 +342,45 @@
           throw new Error(data.error || '未知错误');
         }
 
-        // 渲染结果
         renderResult(data, duration);
 
       } catch (error) {
-        resultsContainer.innerHTML = `
-          <div class="strategy-result">
-            <div class="status error">❌ 评测失败: \${error.message}</div>
-          </div>
-        `;
+        resultsContainer.innerHTML = '<div class="strategy-result"><div class="status error">❌ 评测失败: ' + error.message + '</div></div>';
       }
     }
 
     function renderResult(data, duration) {
-      const { strategy, result, metadata } = data;
+      const strategy = data.strategy;
+      const result = data.result;
       const resultsContainer = document.getElementById('resultsContainer');
 
-      let html = `
-        <div class="strategy-result">
-          <div class="strategy-header">
-            <div class="strategy-name">\${strategy.name}</div>
-            <div class="strategy-desc">\${strategy.description}</div>
-            <div class="strategy-meta">
-              <div class="meta-item">
-                <span>📊 模型:</span>
-                <span>\${strategy.model}</span>
-              </div>
-              <div class="meta-item">
-                <span>🔍 搜索:</span>
-                <span>\${strategy.useGoogleSearch ? '启用' : '禁用'}</span>
-              </div>
-              <div class="meta-item">
-                <span>⏱ 耗时:</span>
-                <span>\${duration}s</span>
-              </div>
-              <div class="meta-item">
-                <span>📝 卡片数:</span>
-                <span>\${result.cards?.length || 0}张</span>
-              </div>
-            </div>
-          </div>
-          <div class="cards-container">
-      `;
+      let html = '<div class="strategy-result">';
+      html += '<div class="strategy-header">';
+      html += '<div class="strategy-name">' + escapeHtml(strategy.name) + '</div>';
+      html += '<div class="strategy-desc">' + escapeHtml(strategy.description) + '</div>';
+      html += '<div class="strategy-meta">';
+      html += '<div class="meta-item"><span>📊 模型:</span><span>' + escapeHtml(strategy.model) + '</span></div>';
+      html += '<div class="meta-item"><span>🔍 搜索:</span><span>' + (strategy.useGoogleSearch ? '启用' : '禁用') + '</span></div>';
+      html += '<div class="meta-item"><span>⏱ 耗时:</span><span>' + duration + 's</span></div>';
+      html += '<div class="meta-item"><span>📝 卡片数:</span><span>' + (result.cards ? result.cards.length : 0) + '张</span></div>';
+      html += '</div></div>';
+      html += '<div class="cards-container">';
 
       if (!result.cards || result.cards.length === 0) {
         html += '<div class="no-cards">⚠️ 未生成任何卡片</div>';
       } else {
-        result.cards.forEach(card => {
-          html += \`
-            <div class="card" style="border-left-color: \${card.color || '#667eea'}">
-              <div class="card-type">\${card.type}</div>
-              <div class="card-title">\${escapeHtml(card.title)}</div>
-              <div class="card-summary">\${escapeHtml(card.summary)}</div>
-              <div class="card-content">\${escapeHtml(card.content)}</div>
-              <div class="card-tags">
-                \${card.tags.map(tag => \`<span class="tag">\${escapeHtml(tag)}</span>\`).join('')}
-              </div>
-            </div>
-          \`;
+        result.cards.forEach(function(card) {
+          const cardColor = card.color || '#667eea';
+          html += '<div class="card" style="border-left-color: ' + cardColor + '">';
+          html += '<div class="card-type">' + escapeHtml(card.type) + '</div>';
+          html += '<div class="card-title">' + escapeHtml(card.title) + '</div>';
+          html += '<div class="card-summary">' + escapeHtml(card.summary) + '</div>';
+          html += '<div class="card-content">' + escapeHtml(card.content) + '</div>';
+          html += '<div class="card-tags">';
+          card.tags.forEach(function(tag) {
+            html += '<span class="tag">' + escapeHtml(tag) + '</span>';
+          });
+          html += '</div></div>';
         });
       }
 
