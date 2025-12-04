@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略评测系统 - Snapshot AI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .controls {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .strategy-selector {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .strategy-selector .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #5568d3;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .test-btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      margin-top: 16px;
+    }
+
+    .results-container {
+      display: none;
+    }
+
+    .results-container.show {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .strategy-result {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .strategy-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 20px;
+    }
+
+    .strategy-name {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .strategy-desc {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .strategy-meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cards-container {
+      padding: 20px;
+    }
+
+    .status {
+      padding: 12px 16px;
+      margin: 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .status.loading {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+
+    .status.success {
+      background: #e8f5e9;
+      color: #388e3c;
+    }
+
+    .status.error {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .card {
+      background: #fafafa;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      border-left: 4px solid #667eea;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .card-type {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .card-summary {
+      color: #666;
+      font-style: italic;
+      margin-bottom: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .card-content {
+      color: #333;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+
+    .card-tags {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      background: #e0e0e0;
+      color: #555;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .no-cards {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .strategy-selector {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .strategy-selector button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🧪 策略评测系统</h1>
+      <p class="subtitle">测试不同版本的 Prompt 策略效果，为未来支持多版本对比</p>
+    </div>
+
+    <div class="controls">
+      <div class="form-group">
+        <label>测试图片 URL</label>
+        <input
+          type="text"
+          id="imageUrl"
+          placeholder="https://ecctoixndgjycpounyfd.supabase.co/storage/v1/object/public/screenshots/xxx.jpg"
+          value="https://ecctoixndgjycpounyfd.supabase.co/storage/v1/object/public/screenshots/1764815020083-24wcg.jpg"
+        >
+      </div>
+
+      <div class="strategy-selector">
+        <div class="form-group">
+          <label>策略版本</label>
+          <select id="strategyId">
+            <option value="v1-baseline">Baseline v1.0 (无搜索)</option>
+            <!-- 未来版本会在这里添加 -->
+          </select>
+        </div>
+        <!-- 未来：右侧会有 + 按钮添加对比版本 -->
+      </div>
+
+      <button class="test-btn" onclick="runEvaluation()">🚀 开始评测</button>
+    </div>
+
+    <div class="results-container" id="resultsContainer">
+      <!-- 动态插入结果 -->
+    </div>
+  </div>
+
+  <script>
+    async function runEvaluation() {
+      const imageUrl = document.getElementById('imageUrl').value.trim();
+      const strategyId = document.getElementById('strategyId').value;
+      const resultsContainer = document.getElementById('resultsContainer');
+
+      if (!imageUrl) {
+        alert('请输入图片 URL');
+        return;
+      }
+
+      // 显示加载状态
+      resultsContainer.classList.add('show');
+      resultsContainer.innerHTML = `
+        <div class="strategy-result">
+          <div class="status loading">⏳ 正在调用 AI 分析...</div>
+        </div>
+      `;
+
+      try {
+        const apiUrl = window.location.origin;
+        const startTime = Date.now();
+
+        const response = await fetch(\`\${apiUrl}/api/evaluate\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl, strategyId })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || \`API 返回 \${response.status}\`);
+        }
+
+        const data = await response.json();
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        if (!data.success) {
+          throw new Error(data.error || '未知错误');
+        }
+
+        // 渲染结果
+        renderResult(data, duration);
+
+      } catch (error) {
+        resultsContainer.innerHTML = `
+          <div class="strategy-result">
+            <div class="status error">❌ 评测失败: \${error.message}</div>
+          </div>
+        `;
+      }
+    }
+
+    function renderResult(data, duration) {
+      const { strategy, result, metadata } = data;
+      const resultsContainer = document.getElementById('resultsContainer');
+
+      let html = `
+        <div class="strategy-result">
+          <div class="strategy-header">
+            <div class="strategy-name">\${strategy.name}</div>
+            <div class="strategy-desc">\${strategy.description}</div>
+            <div class="strategy-meta">
+              <div class="meta-item">
+                <span>📊 模型:</span>
+                <span>\${strategy.model}</span>
+              </div>
+              <div class="meta-item">
+                <span>🔍 搜索:</span>
+                <span>\${strategy.useGoogleSearch ? '启用' : '禁用'}</span>
+              </div>
+              <div class="meta-item">
+                <span>⏱ 耗时:</span>
+                <span>\${duration}s</span>
+              </div>
+              <div class="meta-item">
+                <span>📝 卡片数:</span>
+                <span>\${result.cards?.length || 0}张</span>
+              </div>
+            </div>
+          </div>
+          <div class="cards-container">
+      `;
+
+      if (!result.cards || result.cards.length === 0) {
+        html += '<div class="no-cards">⚠️ 未生成任何卡片</div>';
+      } else {
+        result.cards.forEach(card => {
+          html += \`
+            <div class="card" style="border-left-color: \${card.color || '#667eea'}">
+              <div class="card-type">\${card.type}</div>
+              <div class="card-title">\${escapeHtml(card.title)}</div>
+              <div class="card-summary">\${escapeHtml(card.summary)}</div>
+              <div class="card-content">\${escapeHtml(card.content)}</div>
+              <div class="card-tags">
+                \${card.tags.map(tag => \`<span class="tag">\${escapeHtml(tag)}</span>\`).join('')}
+              </div>
+            </div>
+          \`;
+        });
+      }
+
+      html += '</div></div>';
+      resultsContainer.innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
