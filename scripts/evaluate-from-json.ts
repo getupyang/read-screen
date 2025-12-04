@@ -172,8 +172,6 @@ function loadAIOutput(input: string): any {
 }
 
 async function evaluateWithJudge(testCase: TestCase, aiOutput: any): Promise<any> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-
   const evaluationPrompt = `
 ${JUDGE_PROMPT}
 
@@ -209,8 +207,11 @@ ${JSON.stringify(aiOutput, null, 2)}
 `;
 
   try {
-    const result = await model.generateContent(evaluationPrompt);
-    const response = result.response.text();
+    const result = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: evaluationPrompt,
+    });
+    const response = result.text;
 
     let cleanJson = response.trim();
     if (cleanJson.includes('```json')) {
