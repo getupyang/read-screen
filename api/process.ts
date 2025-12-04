@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Schema, Type } from "@google/genai";
+import { getStrategy, DEFAULT_STRATEGY_ID } from "../config/strategies";
 
 export const config = {
   runtime: 'edge',
@@ -84,31 +85,31 @@ export default async function handler(req: Request) {
       new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // 3. 调用 Gemini 2.5 Flash
-    // 注意：这是简化版prompt，用于验证链路。后续会优化为高质量版本。
-    const prompt = `
-      分析这张截图，提取其中的关键信息。
+    // 3. 获取策略配置并调用 AI
+    const strategy = getStrategy(DEFAULT_STRATEGY_ID);
+    console.log(`[Process] Using strategy: ${strategy.name}`);
 
-      要求：
-      1. 用中文输出
-      2. 提炼核心观点，不要只是复述文字
-      3. 如果有多个话题，分成多张卡片
-      4. 标题要吸引人，内容要通俗易懂
-    `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    // 构建 API 请求配置
+    const requestConfig: any = {
+      model: strategy.model,
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: prompt }
+          { text: strategy.prompt }
         ]
       },
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
       }
-    });
+    };
+
+    // 如果策略需要 Google Search，添加 tools
+    if (strategy.useGoogleSearch) {
+      requestConfig.tools = [{ googleSearch: {} }];
+    }
+
+    const response = await ai.models.generateContent(requestConfig);
 
     let resultJson = response.text || "{}";
     console.log("[Process] AI Raw Response:", resultJson);
