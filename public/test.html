@@ -323,7 +323,7 @@
         const inboxData = await inboxResponse.json();
 
         // 找到刚才创建的记录
-        const record = inboxData.items.find((item: any) =>
+        const record = inboxData.items.find((item) =>
           item.id === testId || item.image_url === imageUrl
         );
 
