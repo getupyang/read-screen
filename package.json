@@ -12,7 +12,8 @@
     "debug": "tsx scripts/debug-inbox.ts",
     "evaluate": "tsx scripts/evaluate-prompt.ts",
     "evaluate-case": "tsx scripts/evaluate-test-case.ts",
-    "evaluate-remote": "tsx scripts/evaluate-remote.ts"
+    "evaluate-remote": "tsx scripts/evaluate-remote.ts",
+    "evaluate-json": "tsx scripts/evaluate-from-json.ts"
   },
   "dependencies": {
     "@google/genai": "*",
