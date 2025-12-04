@@ -246,12 +246,13 @@
         value="https://xmrhqilrlfckqqtaxbgg.supabase.co/storage/v1/object/public/screenshots/1764815020083-24wcg.jpg"
       >
 
-      <label>Vercel API URL (可选，默认使用生产环境)</label>
+      <label>Vercel API URL (自动使用当前域名)</label>
       <input
         type="text"
         id="apiUrl"
-        placeholder="https://read-screen.vercel.app"
-        value="https://read-screen.vercel.app"
+        placeholder="自动检测"
+        readonly
+        style="background: #f0f0f0;"
       >
 
       <button id="testBtn" onclick="runTest()">🚀 开始测试</button>
@@ -264,9 +265,15 @@
   </div>
 
   <script>
+    // 自动使用当前域名，避免 CORS 问题
+    document.addEventListener('DOMContentLoaded', () => {
+      const currentOrigin = window.location.origin;
+      document.getElementById('apiUrl').value = currentOrigin;
+    });
+
     async function runTest() {
       const imageUrl = document.getElementById('imageUrl').value.trim();
-      const apiUrl = document.getElementById('apiUrl').value.trim() || 'https://read-screen.vercel.app';
+      const apiUrl = window.location.origin; // 强制使用当前域名
       const resultsDiv = document.getElementById('results');
       const statusDiv = document.getElementById('status');
       const outputDiv = document.getElementById('output');
