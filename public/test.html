@@ -287,12 +287,18 @@
       const startTime = Date.now();
 
       try {
-        const response = await fetch(`${apiUrl}/api/test-analyze`, {
+        // 使用 process API (会保存到 Supabase，但也能看到效果)
+        const testId = `test_${Date.now()}`;
+
+        const response = await fetch(`${apiUrl}/api/process`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ imageUrl })
+          body: JSON.stringify({
+            id: testId,
+            imageUrl
+          })
         });
 
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -302,7 +308,31 @@
           throw new Error(`API调用失败: ${response.status}\n${errorText}`);
         }
 
-        const result = await response.json();
+        await response.json();
+
+        // 等待2秒让AI分析完成
+        statusDiv.textContent = '⏳ AI正在分析，请稍候...';
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // 从 inbox API 获取结果
+        const inboxResponse = await fetch(`${apiUrl}/api/inbox-data`);
+        if (!inboxResponse.ok) {
+          throw new Error('无法获取inbox数据');
+        }
+
+        const inboxData = await inboxResponse.json();
+
+        // 找到刚才创建的记录
+        const record = inboxData.items.find((item: any) =>
+          item.id === testId || item.image_url === imageUrl
+        );
+
+        if (!record || !record.analysis_result) {
+          statusDiv.textContent = '⏳ 分析还在进行中，请10秒后刷新页面重试...';
+          return;
+        }
+
+        const result = record.analysis_result;
 
         // 显示成功状态
         statusDiv.className = 'status success';
