@@ -68,48 +68,24 @@ export default async function handler(req: Request) {
 
     console.log(`[Process] Starting AI analysis for ID: ${id}`);
 
-    if (!geminiApiKey) {
-      console.error("[Process] Missing GEMINI_API_KEY");
-      throw new Error("Missing GEMINI_API_KEY in environment variables");
-    }
-
-    console.log("[Process] Initializing GoogleGenAI...");
+    if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY in environment variables");
 
     // 1. 初始化
-    let ai;
-    try {
-      ai = new GoogleGenAI({ apiKey: geminiApiKey });
-      console.log("[Process] GoogleGenAI initialized successfully");
-    } catch (error: any) {
-      console.error("[Process] Failed to initialize GoogleGenAI:", error);
-      throw new Error(`GoogleGenAI initialization failed: ${error.message}`);
-    }
-
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
     const supabase = createClient(supabaseUrl!, supabaseKey!);
 
     // 2. 获取图片数据
-    console.log("[Process] Fetching image from:", imageUrl);
     const imageResp = await fetch(imageUrl);
-    if (!imageResp.ok) {
-      console.error("[Process] Failed to fetch image:", imageResp.status, imageResp.statusText);
-      throw new Error(`Failed to fetch image: ${imageResp.statusText}`);
-    }
-
-    console.log("[Process] Image fetched, converting to base64...");
-    let base64Image;
-    try {
-      const imageBlob = await imageResp.blob();
-      const arrayBuffer = await imageBlob.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      base64Image = buffer.toString('base64');
-      console.log("[Process] Image converted to base64, length:", base64Image.length);
-    } catch (error: any) {
-      console.error("[Process] Failed to convert image to base64:", error);
-      throw new Error(`Image conversion failed: ${error.message}`);
-    }
+    if (!imageResp.ok) throw new Error(`Failed to fetch image: ${imageResp.statusText}`);
+    
+    const imageBlob = await imageResp.blob();
+    const arrayBuffer = await imageBlob.arrayBuffer();
+    const base64Image = btoa(
+      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+    );
 
     // 3. 调用 Gemini 2.5 Flash
-    console.log("[Process] Calling Gemini API...");
+    // 注意：这是简化版prompt，用于验证链路。后续会优化为高质量版本。
     const prompt = `
       分析这张截图，提取其中的关键信息。
 
@@ -120,27 +96,19 @@ export default async function handler(req: Request) {
       4. 标题要吸引人，内容要通俗易懂
     `;
 
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: {
-          parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-            { text: prompt }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: responseSchema,
-        }
-      });
-      console.log("[Process] Gemini API call successful");
-    } catch (error: any) {
-      console.error("[Process] Gemini API call failed:", error);
-      console.error("[Process] Error details:", JSON.stringify(error, null, 2));
-      throw new Error(`Gemini API failed: ${error.message}`);
-    }
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: prompt }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+      }
+    });
 
     let resultJson = response.text || "{}";
     console.log("[Process] AI Raw Response:", resultJson);
