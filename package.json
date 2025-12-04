@@ -11,7 +11,8 @@
     "trigger": "tsx scripts/trigger-analysis.ts",
     "debug": "tsx scripts/debug-inbox.ts",
     "evaluate": "tsx scripts/evaluate-prompt.ts",
-    "evaluate-case": "tsx scripts/evaluate-test-case.ts"
+    "evaluate-case": "tsx scripts/evaluate-test-case.ts",
+    "evaluate-remote": "tsx scripts/evaluate-remote.ts"
   },
   "dependencies": {
     "@google/genai": "*",
