@@ -8,8 +8,9 @@
  * 3. 生成详细报告
  */
 
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -23,7 +24,7 @@ if (!supabaseUrl || !supabaseKey || !geminiApiKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-const genAI = new GoogleGenerativeAI(geminiApiKey);
+const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
 // LLM-as-a-Judge 评估Prompt
 const JUDGE_PROMPT = `
@@ -31,29 +32,48 @@ const JUDGE_PROMPT = `
 
 评估标准（基于"增量价值原则"）：
 
-## 维度1：增量价值（50分）
+## 维度1：需求预测准确性（20分）- 过程指标
+评估AI是否准确理解了用户的真实需求。
+
+- 0-5分：完全误判用户需求，答非所问
+- 6-10分：理解了表面需求，但没有识别到深层需求
+- 11-15分：准确识别了用户的明确需求
+- 16-20分：不仅识别明确需求，还洞察到隐含需求
+
+评估要点：
+- 用户想要什么信息？（明确需求）
+- 用户为什么截这张图？（隐含需求）
+- AI的输出是否对准了这些需求？
+
+## 维度2：需求满足质量（50分）- 结果指标
+评估AI输出的内容是否真正满足用户需求，提供了增量价值。
+
 - 0-10分：完全复述截图内容，零增量
 - 11-25分：有少量背景补充，但不深入
-- 26-40分：提供了具体案例或方法论
-- 41-50分：提供深度内容+可行动建议+具体案例
+- 26-40分：提供了具体案例、数据、引用等增量信息
+- 41-50分：提供深度内容+具体细节+可验证信息+超出预期
 
 评估要点：
 - 是否只是复述截图中已有的信息？
 - 是否提供了用户不知道的新信息？
-- 是否有具体的时间、地点、人物、事件？
-- 是否有可验证的细节？
+- 是否有具体的时间、地点、人物、事件、数据？
+- 是否有可验证的细节（引用、出处、链接）？
+- 信息量是否充实、真实、可读？
 
-## 维度2：可行动性（30分）
-- 0-5分：没有任何行动建议
-- 6-15分：有建议但太泛泛（"可以学习一下"）
-- 16-25分：有具体可执行的建议（"问自己XXX问题"）
-- 26-30分：有多层次的行动路径
+## 维度3：表现力（30分）
+评估内容呈现是否干净整洁，让用户有阅读欲望但不感到压力。
 
-## 维度3：结构清晰度（20分）
-- 0-5分：混乱，无法快速理解
-- 6-10分：有结构但不够清晰
-- 11-15分：结构清晰，易读
-- 16-20分：结构完美，一目了然
+- 0-5分：混乱堆砌，无法阅读
+- 6-15分：有结构但不够清晰，或过于碎片化/冗长
+- 16-25分：结构清晰，干净整洁，易读
+- 26-30分：完美呈现，一目了然，有阅读欲望，不过于碎片化
+
+评估要点：
+- 内容是否干净整洁？
+- 是否让人有阅读的欲望？
+- 是否让人感到压力或疲惫？
+- 是否过于碎片化（信息太散）或过于冗长？
+- 一张卡片是否能讲清楚一个完整的点？
 
 ## 输出格式
 
@@ -62,17 +82,18 @@ const JUDGE_PROMPT = `
 \`\`\`json
 {
   "scores": {
-    "incremental_value": 分数 (0-50),
-    "actionability": 分数 (0-30),
-    "clarity": 分数 (0-20),
+    "need_prediction": 分数 (0-20),
+    "need_fulfillment": 分数 (0-50),
+    "presentation": 分数 (0-30),
     "total": 总分 (0-100)
   },
   "analysis": {
     "strengths": ["优点1", "优点2"],
     "weaknesses": ["问题1", "问题2"],
-    "incremental_check": "是否提供了增量价值（是/否）",
-    "specific_examples": ["具体案例1", "具体案例2"] 或 [],
-    "actionable_advice": ["可行动建议1"] 或 []
+    "need_prediction_check": "AI是否准确理解了用户需求（明确+隐含）",
+    "incremental_value_check": "是否提供了截图中没有的增量信息（是/否）",
+    "specific_details": ["具体案例1", "时间地点数据1"] 或 [],
+    "presentation_check": "内容呈现是否干净整洁、有阅读欲望、不过于碎片化"
   },
   "verdict": "通过/不通过（及格线70分）",
   "suggestions": ["改进建议1", "改进建议2"]
@@ -199,9 +220,9 @@ async function runEvaluation(): Promise<void> {
 
     const passed = judgeEvaluation.scores?.total >= 70;
     console.log(`\n📊 评分: ${judgeEvaluation.scores?.total || 0}/100 - ${judgeEvaluation.verdict || '未知'}`);
-    console.log(`   增量价值: ${judgeEvaluation.scores?.incremental_value || 0}/50`);
-    console.log(`   可行动性: ${judgeEvaluation.scores?.actionability || 0}/30`);
-    console.log(`   结构清晰: ${judgeEvaluation.scores?.clarity || 0}/20`);
+    console.log(`   需求预测: ${judgeEvaluation.scores?.need_prediction || 0}/20`);
+    console.log(`   需求满足: ${judgeEvaluation.scores?.need_fulfillment || 0}/50`);
+    console.log(`   表现力: ${judgeEvaluation.scores?.presentation || 0}/30`);
 
     if (judgeEvaluation.analysis?.strengths?.length > 0) {
       console.log(`\n✅ 优点:`);
