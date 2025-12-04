@@ -353,6 +353,7 @@
     function renderResult(data, duration) {
       const strategy = data.strategy;
       const result = data.result;
+      const urlVerification = data.urlVerification;
       const resultsContainer = document.getElementById('resultsContainer');
 
       let html = '<div class="strategy-result">';
@@ -364,7 +365,31 @@
       html += '<div class="meta-item"><span>🔍 搜索:</span><span>' + (strategy.useGoogleSearch ? '启用' : '禁用') + '</span></div>';
       html += '<div class="meta-item"><span>⏱ 耗时:</span><span>' + duration + 's</span></div>';
       html += '<div class="meta-item"><span>📝 卡片数:</span><span>' + (result.cards ? result.cards.length : 0) + '张</span></div>';
+
+      // 显示链接验证结果
+      if (urlVerification) {
+        const totalUrls = urlVerification.validUrls.length + urlVerification.invalidUrls.length;
+        if (totalUrls > 0) {
+          const validCount = urlVerification.validUrls.length;
+          const invalidCount = urlVerification.invalidUrls.length;
+          const icon = urlVerification.allValid ? '✅' : '⚠️';
+          const color = urlVerification.allValid ? '#4caf50' : '#ff9800';
+          html += '<div class="meta-item" style="color: ' + color + '"><span>' + icon + ' 链接:</span><span>' + validCount + '/' + totalUrls + ' 可访问</span></div>';
+        }
+      }
+
       html += '</div></div>';
+
+      // 如果有幻觉链接，显示警告
+      if (urlVerification && urlVerification.invalidUrls.length > 0) {
+        html += '<div style="background: #fff3cd; color: #856404; padding: 16px; margin: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">';
+        html += '<strong>⚠️ 检测到幻觉链接（' + urlVerification.invalidUrls.length + '个）：</strong><br><br>';
+        urlVerification.invalidUrls.forEach(function(invalid) {
+          html += '❌ ' + escapeHtml(invalid.url) + ' - ' + (invalid.status ? 'HTTP ' + invalid.status : invalid.error) + '<br>';
+        });
+        html += '</div>';
+      }
+
       html += '<div class="cards-container">';
 
       if (!result.cards || result.cards.length === 0) {

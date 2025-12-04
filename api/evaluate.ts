@@ -9,6 +9,7 @@
 
 import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { getStrategy, DEFAULT_STRATEGY_ID } from "../config/strategies";
+import { verifyAIOutput } from "../lib/url-verifier";
 
 export const config = {
   runtime: 'edge',
@@ -154,7 +155,21 @@ export default async function handler(req: Request) {
 
     const result = JSON.parse(resultJson);
 
-    // 返回结果，包含策略信息
+    // 验证输出中的链接
+    console.log('[Evaluate] Verifying URLs in AI output...');
+    const urlVerification = await verifyAIOutput(result);
+    console.log('[Evaluate] URL verification:', JSON.stringify({
+      totalUrls: urlVerification.validUrls.length + urlVerification.invalidUrls.length,
+      validUrls: urlVerification.validUrls.length,
+      invalidUrls: urlVerification.invalidUrls.length,
+      allValid: urlVerification.allValid
+    }));
+
+    if (urlVerification.invalidUrls.length > 0) {
+      console.log('[Evaluate] ⚠️ HALLUCINATED URLs detected:', JSON.stringify(urlVerification.invalidUrls));
+    }
+
+    // 返回结果，包含策略信息和链接验证
     return new Response(JSON.stringify({
       success: true,
       strategy: {
@@ -165,6 +180,15 @@ export default async function handler(req: Request) {
         useGoogleSearch: strategy.useGoogleSearch
       },
       result: result,
+      urlVerification: {
+        allValid: urlVerification.allValid,
+        validUrls: urlVerification.validUrls,
+        invalidUrls: urlVerification.invalidUrls.map(u => ({
+          url: u.url,
+          status: u.status,
+          error: u.error
+        }))
+      },
       metadata: {
         duration,
         timestamp: new Date().toISOString()
