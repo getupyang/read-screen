@@ -13,7 +13,8 @@
     "evaluate": "tsx scripts/evaluate-prompt.ts",
     "evaluate-case": "tsx scripts/evaluate-test-case.ts",
     "evaluate-remote": "tsx scripts/evaluate-remote.ts",
-    "evaluate-json": "tsx scripts/evaluate-from-json.ts"
+    "evaluate-json": "tsx scripts/evaluate-from-json.ts",
+    "test-prompt": "tsx scripts/test-prompt.ts"
   },
   "dependencies": {
     "@google/genai": "*",
