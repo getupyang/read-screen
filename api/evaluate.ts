@@ -117,12 +117,32 @@ export default async function handler(req: Request) {
     // 如果策略需要 Google Search，添加 tools
     if (strategy.useGoogleSearch) {
       requestConfig.tools = [{ googleSearch: {} }];
+      console.log('[Evaluate] Google Search enabled');
     }
 
-    console.log(`[Evaluate] Calling Gemini API...`);
+    console.log(`[Evaluate] Calling Gemini API with config:`, JSON.stringify({
+      model: strategy.model,
+      useGoogleSearch: strategy.useGoogleSearch,
+      promptLength: strategy.prompt.length
+    }));
+
     const startTime = Date.now();
     const response = await ai.models.generateContent(requestConfig);
     const duration = Date.now() - startTime;
+
+    console.log(`[Evaluate] Raw response:`, JSON.stringify({
+      hasText: !!response.text,
+      textLength: response.text?.length,
+      hasGroundingMetadata: !!(response as any).groundingMetadata,
+      duration
+    }));
+
+    // 检查是否有 grounding metadata
+    if ((response as any).groundingMetadata) {
+      console.log('[Evaluate] Grounding metadata:', JSON.stringify((response as any).groundingMetadata));
+    } else {
+      console.log('[Evaluate] WARNING: No grounding metadata found - search may not have been used');
+    }
 
     let resultJson = response.text || "{}";
     console.log("[Evaluate] AI Response received");
