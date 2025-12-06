@@ -104,16 +104,15 @@ export default async function handler(req: Request) {
       }
     };
 
-    // 如果策略需要 Google Search，使用正确的 grounding 配置
+    // 如果策略需要 Google Search，使用正确的配置
+    // 参考：https://ai.google.dev/gemini-api/docs/google-search
     if (strategy.useGoogleSearch) {
-      requestConfig.tools = [{
-        googleSearchRetrieval: {
-          dynamicRetrievalConfig: {
-            mode: "MODE_DYNAMIC",
-            dynamicThreshold: 0.3
-          }
-        }
-      }];
+      requestConfig.config = {
+        ...requestConfig.generationConfig,
+        tools: [{ googleSearch: {} }]  // 正确的配置方式
+      };
+      delete requestConfig.generationConfig;  // 移到 config 中
+      console.log('[Process] Google Search enabled (official API format)');
     }
 
     const response = await ai.models.generateContent(requestConfig);

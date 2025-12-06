@@ -115,18 +115,15 @@ export default async function handler(req: Request) {
       }
     };
 
-    // 如果策略需要 Google Search，使用正确的 grounding 配置
+    // 如果策略需要 Google Search，使用正确的配置
+    // 参考：https://ai.google.dev/gemini-api/docs/google-search
     if (strategy.useGoogleSearch) {
-      // 根据 Google AI Studio 的配置方式
-      requestConfig.tools = [{
-        googleSearchRetrieval: {
-          dynamicRetrievalConfig: {
-            mode: "MODE_DYNAMIC",
-            dynamicThreshold: 0.3
-          }
-        }
-      }];
-      console.log('[Evaluate] Google Search Grounding enabled (like AI Studio)');
+      requestConfig.config = {
+        ...requestConfig.generationConfig,
+        tools: [{ googleSearch: {} }]  // 正确的配置方式
+      };
+      delete requestConfig.generationConfig;  // 移到 config 中
+      console.log('[Evaluate] Google Search enabled (official API format)');
     }
 
     console.log(`[Evaluate] Calling Gemini API with config:`, JSON.stringify({
