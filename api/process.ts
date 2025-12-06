@@ -89,7 +89,18 @@ export default async function handler(req: Request) {
     const strategy = getStrategy(DEFAULT_STRATEGY_ID);
     console.log(`[Process] Using strategy: ${strategy.name}`);
 
-    // 构建 API 请求配置
+    // 构建 API 请求配置（统一使用 config 字段）
+    const config: any = {
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
+    };
+
+    // 如果策略需要 Google Search，添加 tools 配置
+    if (strategy.useGoogleSearch) {
+      config.tools = [{ googleSearch: {} }];
+      console.log('[Process] Google Search enabled');
+    }
+
     const requestConfig: any = {
       model: strategy.model,
       contents: {
@@ -98,22 +109,8 @@ export default async function handler(req: Request) {
           { text: strategy.prompt }
         ]
       },
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-      }
+      config: config
     };
-
-    // 如果策略需要 Google Search，使用正确的配置
-    // 参考：https://ai.google.dev/gemini-api/docs/google-search
-    if (strategy.useGoogleSearch) {
-      requestConfig.config = {
-        ...requestConfig.generationConfig,
-        tools: [{ googleSearch: {} }]  // 正确的配置方式
-      };
-      delete requestConfig.generationConfig;  // 移到 config 中
-      console.log('[Process] Google Search enabled (official API format)');
-    }
 
     const response = await ai.models.generateContent(requestConfig);
 

@@ -100,7 +100,18 @@ export default async function handler(req: Request) {
       new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // 构建 API 调用配置
+    // 构建 API 调用配置（统一使用 config 字段）
+    const config: any = {
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
+    };
+
+    // 如果策略需要 Google Search，添加 tools 配置
+    if (strategy.useGoogleSearch) {
+      config.tools = [{ googleSearch: {} }];
+      console.log('[Evaluate] Google Search enabled');
+    }
+
     const requestConfig: any = {
       model: strategy.model,
       contents: {
@@ -109,22 +120,8 @@ export default async function handler(req: Request) {
           { text: strategy.prompt }
         ]
       },
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-      }
+      config: config
     };
-
-    // 如果策略需要 Google Search，使用正确的配置
-    // 参考：https://ai.google.dev/gemini-api/docs/google-search
-    if (strategy.useGoogleSearch) {
-      requestConfig.config = {
-        ...requestConfig.generationConfig,
-        tools: [{ googleSearch: {} }]  // 正确的配置方式
-      };
-      delete requestConfig.generationConfig;  // 移到 config 中
-      console.log('[Evaluate] Google Search enabled (official API format)');
-    }
 
     console.log(`[Evaluate] Calling Gemini API with config:`, JSON.stringify({
       model: strategy.model,
