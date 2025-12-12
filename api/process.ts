@@ -58,15 +58,20 @@ export default async function handler(req: Request) {
   // 仅允许 POST
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
-  try {
-    const { id, imageUrl } = await req.json();
+  let requestId: string | undefined;
+  let imageUrl: string | undefined;
 
-    if (!id || !imageUrl) {
+  try {
+    const body = await req.json();
+    requestId = body.id;
+    imageUrl = body.imageUrl;
+
+    if (!requestId || !imageUrl) {
       console.error("Missing id or imageUrl");
       return new Response("Missing parameters", { status: 400 });
     }
 
-    console.log(`[Process] Starting AI analysis for ID: ${id}`);
+    console.log(`[Process] Starting AI analysis for ID: ${requestId}`);
 
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY in environment variables");
 
@@ -74,10 +79,16 @@ export default async function handler(req: Request) {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
     const supabase = createClient(supabaseUrl!, supabaseKey!);
 
-    // 2. 获取图片数据
-    const imageResp = await fetch(imageUrl);
+    // 2. 获取图片数据（添加超时保护）
+    const imageResp = await Promise.race([
+      fetch(imageUrl),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Image download timeout after 15s')), 15000)
+      )
+    ]);
+
     if (!imageResp.ok) throw new Error(`Failed to fetch image: ${imageResp.statusText}`);
-    
+
     const imageBlob = await imageResp.blob();
     const arrayBuffer = await imageBlob.arrayBuffer();
     const base64Image = btoa(
@@ -123,28 +134,38 @@ export default async function handler(req: Request) {
       .from('inbox')
       .update({
         status: 'ready',
-        analysis_result: JSON.parse(resultJson)
+        analysis_result: JSON.parse(resultJson),
+        error_message: null // 清除之前可能的错误信息
       })
-      .eq('id', id);
+      .eq('id', requestId);
 
     if (updateError) throw updateError;
 
-    console.log(`[Success] Processed ID: ${id}`);
+    console.log(`[Success] Processed ID: ${requestId}`);
     return new Response(JSON.stringify({ success: true }), { status: 200 });
 
   } catch (error: any) {
     console.error("[Process Error]", error);
-    
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 使用已解析的 requestId，不要尝试 clone 已消费的 request
+    if (supabaseUrl && supabaseKey && requestId) {
+      const supabase = createClient(supabaseUrl, supabaseKey, {
+        auth: { persistSession: false }
+      });
       try {
-         const { id } = await req.clone().json();
-         if (id) {
-           await supabase.from('inbox').update({ status: 'error' }).eq('id', id);
-         }
-      } catch (e) {}
+        await supabase.from('inbox').update({
+          status: 'error',
+          error_message: error.message || 'Unknown error during processing'
+        }).eq('id', requestId);
+        console.log(`[Error] Marked ${requestId} as error in database`);
+      } catch (dbError) {
+        console.error("[Error] Failed to update error status in database:", dbError);
+      }
     }
 
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    return new Response(JSON.stringify({
+      error: error.message || 'Internal processing error',
+      id: requestId
+    }), { status: 500 });
   }
 }
