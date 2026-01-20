@@ -1,7 +1,12 @@
-import React from 'react';
-import { Layers, Inbox } from 'lucide-react';
+import React, { useState } from 'react';
+import { Layers, Camera, Film } from 'lucide-react';
+import { MovieList } from './src/components/MovieList';
+
+type TabType = 'screenshots' | 'movies';
 
 function App() {
+  const [activeTab, setActiveTab] = useState<TabType>('movies');
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
       {/* 顶部导航 */}
@@ -15,35 +20,54 @@ function App() {
         </div>
       </header>
 
-      {/* 主内容区：空状态展示 */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-        {/* Added animate-pulse to make the change visible */}
-        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-          <Inbox className="w-12 h-12 text-blue-600" />
+      {/* Tab导航 */}
+      <nav className="bg-white border-b border-gray-200 px-6">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('screenshots')}
+            className={`py-3 px-4 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === 'screenshots'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            <span className="font-medium">截图</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('movies')}
+            className={`py-3 px-4 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === 'movies'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Film className="w-4 h-4" />
+            <span className="font-medium">电影</span>
+          </button>
         </div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">收件箱是空的</h2>
-        <p className="text-gray-500 max-w-xs">
-          去刷小红书吧！<br/>
-          遇到喜欢的干货，截图并分享给 <span className="font-bold text-blue-600">Snapshot AI</span>。
-        </p>
-        
-        {/* 模拟一条卡片占位符，展示未来的样子 */}
-        <div className="mt-12 w-full max-w-sm opacity-50 blur-[1px] scale-95 pointer-events-none select-none">
-           <div className="bg-white p-4 rounded-2xl shadow-lg border border-gray-100">
-              <div className="h-4 w-1/3 bg-gray-200 rounded mb-4"></div>
-              <div className="h-32 bg-gray-100 rounded-xl mb-4"></div>
-              <div className="space-y-2">
-                <div className="h-3 w-full bg-gray-200 rounded"></div>
-                <div className="h-3 w-5/6 bg-gray-200 rounded"></div>
-              </div>
-           </div>
-           <p className="text-xs text-gray-400 mt-2">✨ 晚上回来看 AI 整理好的卡片</p>
-        </div>
+      </nav>
+
+      {/* 主内容区 */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {activeTab === 'screenshots' ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+              <Camera className="w-12 h-12 text-blue-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">截图功能即将上线</h2>
+            <p className="text-gray-500 max-w-xs">
+              敬请期待知识卡片功能
+            </p>
+          </div>
+        ) : (
+          <MovieList />
+        )}
       </main>
 
-      {/* 底部版本号，用于确认部署成功 */}
-      <footer className="pb-6 text-center">
-        <p className="text-[10px] text-gray-400 font-mono">v0.1.9 • Debugging Mode</p>
+      {/* 底部版本号 */}
+      <footer className="pb-6 text-center bg-white border-t border-gray-100">
+        <p className="text-[10px] text-gray-400 font-mono">v0.2.0 • Voice + Movie</p>
       </footer>
     </div>
   );
